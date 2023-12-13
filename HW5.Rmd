@@ -1,0 +1,238 @@
+---
+title: "HW5"
+author: "Umer Farooq"
+date: "2023-12-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(glmnet)
+library(mice)
+library(psych)
+library(pROC)
+library(caret)
+library(naniar)
+library(nnet)
+library(Metrics)
+library(MASS)
+library(faraway)
+library(pscl)
+library(corrplot)
+
+```
+
+```{r warning=FALSE, message=FALSE}
+training <- read_csv("https://raw.githubusercontent.com/Umerfarooq122/predict-the-number-of-cases-of-wine-that-will-be-sold-given-certain-properties-of-the-wine/main/wine-training-data.csv")
+```
+
+```{r}
+head(training)
+```
+
+```{r}
+summary(training)
+```
+
+```{r}
+str(training)
+```
+
+```{r}
+training <- training[-1]
+```
+
+
+```{r}
+par(mfrow = c(3,5))
+plot_histogram(training)
+```
+```{r}
+colSums(is.na(training))
+```
+
+```{r}
+pairs.panels(training[, c(1, 2:6)], main = "Scatter Plot Matrix for Training Dataset")
+```
+
+```{r}
+pairs.panels(training[, c(1, 7:11)], main = "Scatter Plot Matrix for Training Dataset")
+```
+
+```{r}
+pairs.panels(training[, c(1, 11:15)], main = "Scatter Plot Matrix for Training Dataset")
+```
+
+
+```{r}
+set.seed(32)
+training <- mice(training, m=5, maxit = 3, method = 'rf')
+training <- complete(training)
+```
+
+```{r fig.width=10, fig.height=10}
+cor.plot(training)
+```
+
+```{r}
+plot_histogram(training)
+```
+```{r}
+training$STARS <- as.factor(training$STARS)
+```
+
+```{r}
+set.seed(32)
+split <- createDataPartition(training$TARGET, p=.80, list=FALSE)
+partial_train <- training[split, ]
+validation <- training[ -split, ]
+```
+
+```{r}
+p1 <- glm(formula = TARGET~. ,family = 'poisson', data = partial_train)
+```
+
+
+```{r}
+summary(p1)
+```
+
+
+
+```{r}
+p2 <- glm(formula = TARGET~ VolatileAcidity + Chlorides + TotalSulfurDioxide + FreeSulfurDioxide + Sulphates + Alcohol + LabelAppeal + AcidIndex + STARS , data = partial_train, family = 'poisson')
+```
+
+```{r}
+summary(p2)
+```
+
+
+
+```{r}
+nbp1 <- glm.nb(formula = TARGET~., data = partial_train, link = log, maxit=1000)
+```
+
+
+```{r}
+summary(nbp1)
+```
+
+```{r}
+nbp2 <- glm.nb(formula = TARGET~VolatileAcidity + Chlorides + TotalSulfurDioxide + FreeSulfurDioxide + Sulphates + Alcohol + LabelAppeal + AcidIndex + STARS , data = partial_train, link = log, maxit = 1000)
+
+```
+
+
+```{r}
+summary(nbp2)
+```
+
+```{r}
+ml1 <- glm(formula = TARGET~., data = partial_train, family = gaussian())
+```
+
+
+```{r}
+summary(ml1)
+```
+
+
+```{r}
+ml2 <- glm(formula = TARGET~VolatileAcidity + Chlorides + TotalSulfurDioxide + FreeSulfurDioxide + Sulphates + Alcohol + LabelAppeal + AcidIndex + STARS , data = partial_train, family = gaussian())
+```
+
+
+```{r}
+summary(ml2)
+```
+
+```{r}
+zip1 <- zeroinfl(TARGET~.|STARS, data = partial_train)
+```
+
+```{r}
+summary(zip1)
+```
+```{r}
+zip2 <- zeroinfl(TARGET ~ VolatileAcidity + Chlorides + 
+    Alcohol + LabelAppeal + AcidIndex | STARS, data =partial_train)
+```
+
+
+```{r}
+summary(zip2)
+```
+
+```{r}
+p1_pred <- predict(p1, newdata = validation, type = "response")
+```
+
+```{r}
+p1_mae <- mae(validation$TARGET, p1_pred)
+p1_mse <- mse(validation$TARGET, p1_pred)
+```
+
+```{r}
+p2_pred <- predict(p2, newdata = validation, type = "response")
+```
+
+```{r}
+p2_mae <- mae(validation$TARGET, p2_pred)
+p2_mse <- mse(validation$TARGET, p2_pred)
+```
+
+```{r}
+nbp1_pred <- predict(nbp1, newdata = validation, type = "response")
+```
+
+```{r}
+nbp1_mae <- mae(validation$TARGET, nbp1_pred)
+nbp1_mse <- mse(validation$TARGET, nbp1_pred)
+```
+
+```{r}
+nbp2_pred <- predict(nbp2 , newdata = validation, type = "response")
+```
+
+```{r}
+nbp2_mae <- mae(validation$TARGET, nbp2_pred)
+nbp2_mse <- mse(validation$TARGET, nbp2_pred)
+```
+
+```{r}
+ml1_pred <- predict(ml1, newdata = validation, type = "response")
+```
+
+```{r}
+ml1_mae <- mae(validation$TARGET, ml1_pred)
+ml1_mse <- mse(validation$TARGET, ml1_pred)
+```
+
+```{r}
+ml2_pred <- predict(ml2, newdata = validation, type = "response")
+```
+
+```{r}
+ml2_mae <- mae(validation$TARGET, ml2_pred)
+ml2_mse <- mse(validation$TARGET, ml2_pred)
+```
+
+```{r}
+zip1_pred <- predict(zip1, newdata = validation, type = "response")
+```
+
+```{r}
+zip1_mae <- mae(validation$TARGET, zip1_pred)
+zip1_mse <- mse(validation$TARGET, zip1_pred)
+```
+
+```{r}
+zip2_pred <- predict(zip2, newdata = validation, type = "response")
+```
+
+```{r}
+zip2_mae <- mae(validation$TARGET, zip2_pred)
+zip2_mse <- mse(validation$TARGET, zip2_pred)
+```
