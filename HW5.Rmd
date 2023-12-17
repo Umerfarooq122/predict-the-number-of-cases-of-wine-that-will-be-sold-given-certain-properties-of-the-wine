@@ -16,54 +16,104 @@ library(caret)
 library(naniar)
 library(nnet)
 library(Metrics)
+
 library(MASS)
 library(faraway)
 library(pscl)
 library(corrplot)
 
+
 ```
+
+## INTRODUCTION:
+
+In this homework assignment, you will explore, analyze and model a data set containing information on
+approximately 12,000 commercially available wines. The variables are mostly related to the chemical properties of the wine being sold. The response variable is the number of sample cases of wine that were purchased by wine distribution companies after sampling a wine. These cases would be used to provide tasting samples to restaurants and wine stores around the United States. The more sample cases purchased, the more likely is a wine to be sold at a high end restaurant. A large wine manufacturer is studying the data in order to predict the number of wine cases ordered based upon the wine characteristics. If the wine manufacturer can predict the number of cases, then that manufacturer will be able to adjust their wine offering to maximize sales.
+
+Your objective is to build a count regression model to predict the number of cases of wine that will be sold given certain properties of the wine. Below is a short description of the variables of interest in the data set:
+
+```{r echo=FALSE}
+knitr::include_graphics("https://raw.githubusercontent.com/Umerfarooq122/predict-the-number-of-cases-of-wine-that-will-be-sold-given-certain-properties-of-the-wine/main/VARIABLES.png")
+```
+## **DATA EXPLORATION:**
+
+In this section we load and explore the training data set. We will try get familiarize ourselves with different variables i.e. dependent and independent variables, and check out their distributions. The problem at hand is about counting the number of wines sold that contains certain properties which indicates that we will be dealing with a lot of variables since these kind of problems are dependent on multiple factors. So before any further due let’s begin by loading the data set.
+
+### **Loading The Data set:**
+
+Below code chunk loads the required data set that we can use to train our model.
 
 ```{r warning=FALSE, message=FALSE}
 training <- read_csv("https://raw.githubusercontent.com/Umerfarooq122/predict-the-number-of-cases-of-wine-that-will-be-sold-given-certain-properties-of-the-wine/main/wine-training-data.csv")
 ```
 
-```{r}
-head(training)
-```
+Let’s display the fist five row of the data set to check if everything has been loaded into our work environment correctly
 
 ```{r}
-summary(training)
+knitr::kable(head(training))
 ```
 
+### **Checking Out The Dimensions, Descriptive Summary And Distributions:**
+
+We can see that we have got all the columns that are mentioned in the introduction about data set. Let’s check out the dimension of the data set
+
 ```{r}
-str(training)
+dim(training)
 ```
+
+
+As we can see that we have got 16 columns in total and 12795 observations. One of those columns in an index column and we usually do not need it for the analysis so lets remove that from our data set.
 
 ```{r}
 training <- training[-1]
 ```
 
+Let’s quickly peek into the descriptive summary of our data set
 
 ```{r}
-par(mfrow = c(3,5))
-plot_histogram(training)
+knitr::kable(summary(training))
 ```
+
+
+As we See that are multiple missing values in the dataset and we can also see that our columns have a variety of ranges. The `TARGET` columns mean is at around 3 and we can also check the variance to see if later on during modeling the poisson distribution would be the right model.
+
 ```{r}
-colSums(is.na(training))
+var(training$TARGET)
 ```
+
+Variance is very close to the mean of the `TARGET` column so I think poisson would be an optimal fit.
+We can check out the structure of data set.
+
+```{r}
+str(training)
+```
+We can see that some column does not have the right data type so we have to fix that. For instance, `STARS` column was suppose to a nominal data rather than numeric so we have to fix that. We can also look the distribution of all the columns and its correlation with our `TARGET` column using visualization as shown below:
+
+```{r}
+#par(mfrow = c(3,5))
+#plot_histogram(training)
+```
+
 
 ```{r}
 pairs.panels(training[, c(1, 2:6)], main = "Scatter Plot Matrix for Training Dataset")
+pairs.panels(training[, c(1, 7:11)], main = "")
+pairs.panels(training[, c(1, 11:15)], main = "")
 ```
+
+## **DATA PREPARATION:**
+
+In this section we will prepare our data for modeling. We can set the data type for column like `STARS` and convert them into factors which a much more acceptable data type when it comes to Modeling.
+
+### **Fixing The Data Types:**
 
 ```{r}
-pairs.panels(training[, c(1, 7:11)], main = "Scatter Plot Matrix for Training Dataset")
+training$STARS <- as.factor(training$STARS)
 ```
 
-```{r}
-pairs.panels(training[, c(1, 11:15)], main = "Scatter Plot Matrix for Training Dataset")
-```
+### **Imputing The Missing Values
 
+Since our data set has a mixture of continuous and categorical variables so we will consider a method that can handle both types and my personal pick would be to use random forest method to look at. Random forest can handle both data type plus it is an ensemble method which is a better approach to predict something.
 
 ```{r}
 set.seed(32)
@@ -71,16 +121,26 @@ training <- mice(training, m=5, maxit = 3, method = 'rf')
 training <- complete(training)
 ```
 
-```{r fig.width=10, fig.height=10}
-cor.plot(training)
-```
+
+let's do a quick check of any missing values in the data set:
 
 ```{r}
-plot_histogram(training)
+sum(is.na(training))
 ```
+
+As our data set is ready so now we can go ahead and create our models
+
+
 ```{r}
-training$STARS <- as.factor(training$STARS)
+#plot_histogram(training)
 ```
+
+
+## **BUILDING MODELS:** 
+
+### **Splitting the Data set:**
+
+Now let’s split the data into training and testing. We will split the data set `training` into `partial_train` and `validation`. `Partial_train` contains 85% of the data from `training` and the rest is in the validation that we will use for testing or evaluating the performance of our model.
 
 ```{r}
 set.seed(32)
@@ -88,6 +148,8 @@ split <- createDataPartition(training$TARGET, p=.80, list=FALSE)
 partial_train <- training[split, ]
 validation <- training[ -split, ]
 ```
+
+### **Poisson Regression:**
 
 ```{r}
 p1 <- glm(formula = TARGET~. ,family = 'poisson', data = partial_train)
@@ -98,7 +160,7 @@ p1 <- glm(formula = TARGET~. ,family = 'poisson', data = partial_train)
 summary(p1)
 ```
 
-
+### **Poisson Regression Reduced:**
 
 ```{r}
 p2 <- glm(formula = TARGET~ VolatileAcidity + Chlorides + TotalSulfurDioxide + FreeSulfurDioxide + Sulphates + Alcohol + LabelAppeal + AcidIndex + STARS , data = partial_train, family = 'poisson')
@@ -108,10 +170,10 @@ p2 <- glm(formula = TARGET~ VolatileAcidity + Chlorides + TotalSulfurDioxide + F
 summary(p2)
 ```
 
-
+### **Negative Binomial Model:**
 
 ```{r}
-nbp1 <- glm.nb(formula = TARGET~., data = partial_train, link = log, maxit=1000)
+nbp1 <- glm.nb(formula = TARGET~., data = partial_train, link = log, maxit=2000)
 ```
 
 
@@ -119,8 +181,10 @@ nbp1 <- glm.nb(formula = TARGET~., data = partial_train, link = log, maxit=1000)
 summary(nbp1)
 ```
 
+### **Negative Binomial Reduced:**
+
 ```{r}
-nbp2 <- glm.nb(formula = TARGET~VolatileAcidity + Chlorides + TotalSulfurDioxide + FreeSulfurDioxide + Sulphates + Alcohol + LabelAppeal + AcidIndex + STARS , data = partial_train, link = log, maxit = 1000)
+nbp2 <- glm.nb(formula = TARGET~VolatileAcidity + Chlorides + TotalSulfurDioxide + FreeSulfurDioxide + Alcohol + LabelAppeal + AcidIndex + STARS , data = partial_train, link = log, maxit = 2000)
 
 ```
 
@@ -128,6 +192,10 @@ nbp2 <- glm.nb(formula = TARGET~VolatileAcidity + Chlorides + TotalSulfurDioxide
 ```{r}
 summary(nbp2)
 ```
+
+`NOTE:` As we can see that coefficients from poisson and negative binomial model are exactly alike mainly because of the closeness in the value of mean and variance for response variable.
+
+### **Multiple Linear Regression:**
 
 ```{r}
 ml1 <- glm(formula = TARGET~., data = partial_train, family = gaussian())
@@ -138,6 +206,7 @@ ml1 <- glm(formula = TARGET~., data = partial_train, family = gaussian())
 summary(ml1)
 ```
 
+### **Multiple Linear Regression Reduced:**
 
 ```{r}
 ml2 <- glm(formula = TARGET~VolatileAcidity + Chlorides + TotalSulfurDioxide + FreeSulfurDioxide + Sulphates + Alcohol + LabelAppeal + AcidIndex + STARS , data = partial_train, family = gaussian())
@@ -148,6 +217,8 @@ ml2 <- glm(formula = TARGET~VolatileAcidity + Chlorides + TotalSulfurDioxide + F
 summary(ml2)
 ```
 
+### **Zero Inflation Poisson:**
+
 ```{r}
 zip1 <- zeroinfl(TARGET~.|STARS, data = partial_train)
 ```
@@ -155,6 +226,11 @@ zip1 <- zeroinfl(TARGET~.|STARS, data = partial_train)
 ```{r}
 summary(zip1)
 ```
+
+
+### **Zero Inflation Poisson Reduced:**
+
+
 ```{r}
 zip2 <- zeroinfl(TARGET ~ VolatileAcidity + Chlorides + 
     Alcohol + LabelAppeal + AcidIndex | STARS, data =partial_train)
@@ -165,74 +241,96 @@ zip2 <- zeroinfl(TARGET ~ VolatileAcidity + Chlorides +
 summary(zip2)
 ```
 
+## SELECTING MODELS AND EVALUATION:
+
+### **Model Selection:**
+
 ```{r}
 p1_pred <- predict(p1, newdata = validation, type = "response")
+p2_pred <- predict(p2, newdata = validation, type = "response")
+nbp1_pred <- predict(nbp1, newdata = validation, type = "response")
+#nbp2_pred <- predict(nbp2 , newdata = validation, type = "response")
+ml1_pred <- predict(ml1, newdata = validation, type = "response")
+ml2_pred <- predict(ml2, newdata = validation, type = "response")
+zip1_pred <- predict(zip1, newdata = validation, type = "response")
+zip2_pred <- predict(zip2, newdata = validation, type = "response")
 ```
 
 ```{r}
 p1_mae <- mae(validation$TARGET, p1_pred)
 p1_mse <- mse(validation$TARGET, p1_pred)
-```
-
-```{r}
-p2_pred <- predict(p2, newdata = validation, type = "response")
-```
-
-```{r}
 p2_mae <- mae(validation$TARGET, p2_pred)
 p2_mse <- mse(validation$TARGET, p2_pred)
-```
-
-```{r}
-nbp1_pred <- predict(nbp1, newdata = validation, type = "response")
-```
-
-```{r}
 nbp1_mae <- mae(validation$TARGET, nbp1_pred)
 nbp1_mse <- mse(validation$TARGET, nbp1_pred)
-```
-
-```{r}
-nbp2_pred <- predict(nbp2 , newdata = validation, type = "response")
-```
-
-```{r}
-nbp2_mae <- mae(validation$TARGET, nbp2_pred)
-nbp2_mse <- mse(validation$TARGET, nbp2_pred)
-```
-
-```{r}
-ml1_pred <- predict(ml1, newdata = validation, type = "response")
-```
-
-```{r}
+#nbp2_mae <- mae(validation$TARGET, nbp2_pred)
+#nbp2_mse <- mse(validation$TARGET, nbp2_pred)
 ml1_mae <- mae(validation$TARGET, ml1_pred)
 ml1_mse <- mse(validation$TARGET, ml1_pred)
-```
-
-```{r}
-ml2_pred <- predict(ml2, newdata = validation, type = "response")
-```
-
-```{r}
 ml2_mae <- mae(validation$TARGET, ml2_pred)
 ml2_mse <- mse(validation$TARGET, ml2_pred)
-```
-
-```{r}
-zip1_pred <- predict(zip1, newdata = validation, type = "response")
-```
-
-```{r}
 zip1_mae <- mae(validation$TARGET, zip1_pred)
 zip1_mse <- mse(validation$TARGET, zip1_pred)
-```
-
-```{r}
-zip2_pred <- predict(zip2, newdata = validation, type = "response")
-```
-
-```{r}
 zip2_mae <- mae(validation$TARGET, zip2_pred)
 zip2_mse <- mse(validation$TARGET, zip2_pred)
 ```
+
+
+```{r}
+model_names <- c("Poisson", "Poisson Reduced", "Negative Binomial",  "Multiple Linear Regression", "Multiple Linear Regression Reduced", "Zero Inflation Poisson", "Zero Inflation Poisson Reduced")
+mae_values <- c(p1_mae, p2_mae, nbp1_mae, ml1_mae, ml2_mae, zip1_mae, zip2_mae)
+mse_values <- c(p1_mse, p2_mse, nbp1_mse, ml1_mse, ml2_mse, zip1_mse, zip2_mse)
+result_df <- data.frame(Model = model_names, MAE = mae_values, MSE = mse_values)
+knitr::kable(result_df)
+```
+
+
+### **Predictions:**
+
+Let's load the testing data set for predictions:
+
+```{r}
+testing <- read.csv("https://raw.githubusercontent.com/Umerfarooq122/predict-the-number-of-cases-of-wine-that-will-be-sold-given-certain-properties-of-the-wine/main/wine-evaluation-data.csv")
+```
+
+Displaying the first few row of our testing data set:
+
+```{r}
+knitr::kable(head(testing))
+```
+
+Removing unwanted Columns
+
+```{r}
+testing <- testing[-c(1,2)]
+```
+
+Looking for any missing values in our testing data set:
+
+```{r}
+colSums(is.na(testing))
+```
+
+```{r}
+testing$STARS <- as.factor(testing$STARS)
+```
+
+
+```{r}
+set.seed(32)
+testing <- mice(testing, m=5, maxit = 3, method = 'rf')
+testing <- complete(testing)
+```
+
+We are going to use the poisson reduced model to predict the outcomes of our testing set.
+
+```{r}
+predictions <- predict(p2, newdata = testing, type = "response")
+```
+
+Here is the histogram of our predictions
+
+```{r}
+hist(predictions)
+```
+
